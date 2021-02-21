@@ -382,6 +382,7 @@ class SLP {
       return hex
     } catch (err) {
       wlogger.error(`Error in createTokenTx: ${err.message}`, err)
+      console.error('Error in createTokenTx(): ', err)
 
       // if (err.message) throw new Error(err.message)
       // else throw new Error('Error in createTokenTx()')
