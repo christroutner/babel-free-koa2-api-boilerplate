@@ -351,60 +351,157 @@ describe('#token-liquidity', () => {
       })
       */
     })
-    describe('#getPrice()', () => {
+
+    describe('#getCoinbasePrice()', () => {
       it('should get the current price from coinbase api', async () => {
         try {
-          sandbox
-            .stub(lib, 'got')
-            .resolves(libMockData.exchangeRatesResponse)
+          sandbox.stub(lib, 'got').resolves(libMockData.exchangeRatesResponse)
 
-          sandbox
-            .stub(lib.bch, 'getBCHBalance')
-            .resolves(12.44768481)
+          const result = await lib.getCoinbasePrice()
+          // console.log(`result: ${JSON.stringify(result, null, 2)}`)
 
-          const result = await lib.getPrice()
-          assert.isString(result)
+          assert.isNumber(result)
         } catch (error) {
           assert.fail('Unexpected result')
         }
       })
-      it('should get the current price from the local state if an error is thrown', async () => {
-        try {
-          sandbox
-            .stub(lib, 'got')
-            .throws(new Error('test error'))
 
-          const result = await lib.getPrice()
-          assert.isString(result)
-        } catch (error) {
-          assert.fail('Unexpected result')
-        }
-      })
       it('should handle error ', async () => {
         try {
           sandbox
             .stub(lib, 'got')
             .throws(new Error('Coinbase exchange rate could not be retrieved!'))
-          sandbox
-            .stub(lib.tlUtil, 'readState')
-            .throws(new Error('Cant get the current price from the local state'))
 
-          await lib.getPrice()
+          await lib.getCoinbasePrice()
           assert.fail('Unexpected result')
         } catch (error) {
-          assert.include(error.message, 'Cant get the current price from the local state')
+          assert.include(
+            error.message,
+            'Coinbase exchange rate could not be retrieved!'
+          )
+          // console.log('error: ', error)
         }
       })
     })
+
+    describe('#getCoinexPrice', () => {
+      it('should get Coinex Price for BCH', async () => {
+        sandbox.stub(lib.bch.bchjs.Price, 'getBchUsd').resolves(558.99)
+
+        const result = await lib.getCoinexPrice()
+        // console.log(`result: ${JSON.stringify(result, null, 2)}`)
+
+        assert.isNumber(result)
+      })
+
+      it('should handle error ', async () => {
+        try {
+          sandbox
+            .stub(lib.bch.bchjs.Price, 'getBchUsd')
+            .rejects(new Error('test error'))
+
+          const result = await lib.getCoinexPrice()
+          console.log('result: ', result)
+
+          assert.fail('Unexpected result')
+        } catch (error) {
+          // console.log('error: ', error)
+          assert.include(error.message, 'test error')
+        }
+      })
+    })
+
+    describe('#getPrice()', () => {
+      it('should get the current price from coinbase api', async () => {
+        try {
+          sandbox.stub(lib, 'getCoinbasePrice').resolves(540.00)
+
+          // sandbox.stub(lib.bch, 'getBCHBalance').resolves(12.44768481)
+
+          const result = await lib.getPrice()
+          assert.isNumber(result)
+        } catch (error) {
+          assert.fail('Unexpected result')
+        }
+      })
+
+      it('should get price from Coinex if Coinbase fails', async () => {
+        // Force an error with Coinbase.
+        sandbox.stub(lib, 'getCoinbasePrice').rejects(new Error('test error'))
+
+        // Stub network connection to Coinex.
+        sandbox.stub(lib, 'getCoinexPrice').resolves(540.00)
+
+        const result = await lib.getPrice()
+        assert.isNumber(result)
+      })
+
+      it('should get the current price from the local state if an error is thrown', async () => {
+        try {
+          // Force an error with Coinbase.
+          sandbox.stub(lib, 'getCoinbasePrice').rejects(new Error('test error'))
+
+          // Force an error with Coinex
+          sandbox.stub(lib, 'getCoinexPrice').rejects(new Error('test error'))
+
+          const result = await lib.getPrice()
+          // console.log('result: ', result)
+
+          assert.isNumber(result)
+        } catch (error) {
+          console.log('error: ', error)
+          assert.fail('Unexpected result')
+        }
+      })
+
+      it('should get the current price from the local state if a second error is thrown', async () => {
+        try {
+          // Force an error with Coinbase.
+          sandbox.stub(lib, 'getCoinbasePrice').rejects(new Error('test error'))
+
+          // Force an error with Coinex
+          sandbox.stub(lib, 'getCoinexPrice').rejects(new Error('test error'))
+
+          // Force an error in working with the blockchain.
+          sandbox.stub(lib.bch, 'getBCHBalance').rejects(new Error('test error'))
+
+          const result = await lib.getPrice()
+          // console.log('result: ', result)
+
+          assert.isNumber(result)
+        } catch (error) {
+          console.log('error: ', error)
+          assert.fail('Unexpected result')
+        }
+      })
+
+      // it('should handle error ', async () => {
+      //   try {
+      //     sandbox
+      //       .stub(lib, 'got')
+      //       .throws(new Error('Coinbase exchange rate could not be retrieved!'))
+      //     sandbox
+      //       .stub(lib.tlUtil, 'readState')
+      //       .throws(
+      //         new Error('Cant get the current price from the local state')
+      //       )
+      //
+      //     await lib.getPrice()
+      //     assert.fail('Unexpected result')
+      //   } catch (error) {
+      //     assert.include(
+      //       error.message,
+      //       'Cant get the current price from the local state'
+      //     )
+      //   }
+      // })
+    })
+
     describe('#getBlockchainBalances()', () => {
       it('should get the current blockchain balances', async () => {
         try {
-          sandbox
-            .stub(lib.bch, 'getBCHBalance')
-            .resolves(12.44768481)
-          sandbox
-            .stub(lib.slp, 'getTokenBalance')
-            .resolves(12.44768481)
+          sandbox.stub(lib.bch, 'getBCHBalance').resolves(12.44768481)
+          sandbox.stub(lib.slp, 'getTokenBalance').resolves(12.44768481)
 
           const result = await lib.getBlockchainBalances()
           assert.property(result, 'bchBalance')
@@ -415,11 +512,10 @@ describe('#token-liquidity', () => {
           assert.fail('Unexpected result')
         }
       })
+
       it('should handle error if an error is thrown getting bch balance', async () => {
         try {
-          sandbox
-            .stub(lib.bch, 'getBCHBalance')
-            .throws(new Error('test error'))
+          sandbox.stub(lib.bch, 'getBCHBalance').throws(new Error('test error'))
 
           await lib.getBlockchainBalances()
           assert.fail('Unexpected result')
@@ -427,11 +523,10 @@ describe('#token-liquidity', () => {
           assert.include(error.message, 'test error')
         }
       })
+
       it('should handle error if an error is thrown getting slp balance', async () => {
         try {
-          sandbox
-            .stub(lib.bch, 'getBCHBalance')
-            .resolves(12.44768481)
+          sandbox.stub(lib.bch, 'getBCHBalance').resolves(12.44768481)
           sandbox
             .stub(lib.slp, 'getTokenBalance')
             .throws(new Error('test error'))
@@ -443,6 +538,7 @@ describe('#token-liquidity', () => {
         }
       })
     })
+
     describe('#getSpotPrice()', () => {
       it('should get the spot price', async () => {
         try {
@@ -456,6 +552,7 @@ describe('#token-liquidity', () => {
           assert.fail('Unexpected result')
         }
       })
+
       it('should throw error if bchBalance is not provided', async () => {
         try {
           await lib.getSpotPrice()
@@ -465,6 +562,7 @@ describe('#token-liquidity', () => {
           assert.include(error.message, 'bchBalance is required')
         }
       })
+
       it('should throw error if usdPerBCH is not provided', async () => {
         try {
           const bchBalance = 12.44768481
@@ -476,13 +574,12 @@ describe('#token-liquidity', () => {
           assert.include(error.message, 'usdPerBCH is required')
         }
       })
+
       it('should handle error', async () => {
         try {
           const bchBalance = 12.44768481
           const usdPerBCH = 1
-          sandbox
-            .stub(lib.tlUtil, 'round8')
-            .throws(new Error('test error'))
+          sandbox.stub(lib.tlUtil, 'round8').throws(new Error('test error'))
 
           await lib.getSpotPrice(bchBalance, usdPerBCH)
 
@@ -492,6 +589,7 @@ describe('#token-liquidity', () => {
         }
       })
     })
+
     describe('#getEffectiveTokenBalance()', () => {
       it('should get token balance', async () => {
         try {
@@ -504,6 +602,7 @@ describe('#token-liquidity', () => {
           assert.fail('Unexpected result')
         }
       })
+
       it('should throw error if bchBalance is not provided', async () => {
         try {
           await lib.getEffectiveTokenBalance()
@@ -517,9 +616,7 @@ describe('#token-liquidity', () => {
       it('should handle error', async () => {
         try {
           const bchBalance = 12.44768481
-          sandbox
-            .stub(lib.tlUtil, 'round8')
-            .throws(new Error('test error'))
+          sandbox.stub(lib.tlUtil, 'round8').throws(new Error('test error'))
 
           await lib.getEffectiveTokenBalance(bchBalance)
 
