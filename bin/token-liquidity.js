@@ -136,7 +136,7 @@ async function startTokenLiquidity () {
     await getJwt()
     bch = new BCH() // Reinitialize bchjs with the JWT token.
     slp = new SLP() // Reinitialize bchjs with the JWT token.
-  }, 60000 * 60 * 24)
+  }, 60000 * 60) // Once every hour
 
   // Periodically write out status information to the log file. This ensures
   // the log file is created every day and the the /logapi route works.
